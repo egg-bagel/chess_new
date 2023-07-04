@@ -299,6 +299,8 @@ class Bishop
         i += 1
         j += 1
         next
+      elsif board[i + 1][j + 1].piece.color == @color
+        blocked = true
       elsif board[i + 1][j + 1].piece.color != @color
         legal_captures.push([i + 1, j + 1])
         blocked = true
@@ -317,6 +319,8 @@ class Bishop
         i += 1
         j -= 1
         next
+      elsif board[i + 1][j - 1].piece.color == @color
+        blocked = true
       elsif board[i + 1][j - 1].piece.color != @color
         legal_captures.push([i + 1, j - 1])
         blocked = true
@@ -335,6 +339,8 @@ class Bishop
         i -= 1
         j += 1
         next
+      elsif board[i - 1][j + 1].piece.color == @color
+        blocked = true
       elsif board[i - 1][j + 1].piece.color != @color
         legal_captures.push([i - 1, j + 1])
         blocked = true
@@ -353,6 +359,8 @@ class Bishop
         i -= 1
         j -= 1
         next
+      elsif board[i - 1][j - 1].piece.color == @color
+        blocked = true
       elsif board[i - 1][j - 1].piece.color != @color
         legal_captures.push([i - 1, j - 1])
         blocked = true
@@ -433,6 +441,8 @@ class Rook
       if board[i + 1][col].empty == true
         i += 1
         next
+      elsif board[i + 1][col].piece.color == @color
+        blocked = true
       elsif board[i + 1][col].piece.color != @color
         legal_captures.push([i + 1, col])
         blocked = true
@@ -448,6 +458,8 @@ class Rook
       if board[i - 1][col].empty == true
         i -= 1
         next
+      elsif board[i - 1][col].piece.color == @color
+        blocked = true
       elsif board[i - 1][col].piece.color != @color
         legal_captures.push([i - 1, col])
         blocked = true
@@ -463,6 +475,8 @@ class Rook
       if board[row][i + 1].empty == true
         i += 1
         next
+      elsif board[row][i + 1].piece.color == @color
+        blocked = true
       elsif board[row][i + 1].piece.color != @color
         legal_captures.push([row, i + 1])
         blocked = true
@@ -478,6 +492,8 @@ class Rook
       if board[row][i - 1].empty == true
         i -= 1
         next
+      elsif board[row][i - 1].piece.color == @color
+        blocked = true
       elsif board[row][i - 1].piece.color != @color
         legal_captures.push([row, i - 1])
         blocked = true
@@ -591,6 +607,8 @@ class Queen
         i += 1
         j += 1
         next
+      elsif board[i + 1][j + 1].piece.color == @color
+        blocked = true
       elsif board[i + 1][j + 1].piece.color != @color
         legal_captures.push([i + 1, j + 1])
         blocked = true
@@ -609,6 +627,8 @@ class Queen
         i += 1
         j -= 1
         next
+      elsif board[i + 1][j - 1].piece.color == @color
+        blocked = true
       elsif board[i + 1][j - 1].piece.color != @color
         legal_captures.push([i + 1, j - 1])
         blocked = true
@@ -627,6 +647,8 @@ class Queen
         i -= 1
         j += 1
         next
+      elsif board[i - 1][j + 1].piece.color == @color
+        blocked = true
       elsif board[i - 1][j + 1].piece.color != @color
         legal_captures.push([i - 1, j + 1])
         blocked = true
@@ -645,6 +667,8 @@ class Queen
         i -= 1
         j -= 1
         next
+      elsif board[i - 1][j - 1].piece.color == @color
+        blocked = true
       elsif board[i - 1][j - 1].piece.color != @color
         legal_captures.push([i - 1, j - 1])
         blocked = true
@@ -660,6 +684,8 @@ class Queen
       if board[i + 1][col].empty == true
         i += 1
         next
+      elsif board[i + 1][col].piece.color == @color
+        blocked = true
       elsif board[i + 1][col].piece.color != @color
         legal_captures.push([i + 1, col])
         blocked = true
@@ -675,6 +701,8 @@ class Queen
       if board[i - 1][col].empty == true
         i -= 1
         next
+      elsif board[i - 1][col].piece.color == @color
+        blocked = true
       elsif board[i - 1][col].piece.color != @color
         legal_captures.push([i - 1, col])
         blocked = true
@@ -690,6 +718,8 @@ class Queen
       if board[row][i + 1].empty == true
         i += 1
         next
+      elsif board[row][i + 1].piece.color == @color
+        blocked = true
       elsif board[row][i + 1].piece.color != @color
         legal_captures.push([row, i + 1])
         blocked = true
@@ -705,6 +735,8 @@ class Queen
       if board[row][i - 1].empty == true
         i -= 1
         next
+      elsif board[row][i - 1].piece.color == @color
+        blocked = true
       elsif board[row][i - 1].piece.color != @color
         legal_captures.push([row, i - 1])
         blocked = true
@@ -962,10 +994,10 @@ class Game
   end
 
   def play
+    print_board
     while checkmate? == false
-      print_board
       move = prompt_for_move
-      while is_check?(move)
+      while leaves_king_in_check?(move)
         puts "That move leaves your king in check. Try another move."
         move = prompt_for_move
       end
@@ -973,16 +1005,21 @@ class Game
       print_board
       update_move_attack_ranges
       switch_player
-
-
+    end
+    if @current_player == "white"
+      puts "Checkmate! Black wins the game!"
+    elsif @current_player == "black"
+      puts "Checkmate! White wins the game!"
     end
   end
 
-  def checkmate?
-    return false
-  end
-
+  # Prompts the player to enter a legal move in valid chess notation.
   def prompt_for_move
+    if @current_player == "white"
+      puts "White to play."
+    else
+      puts "Black to play."
+    end
     puts "Enter your move:"
     move = gets.chomp
 
@@ -1070,6 +1107,7 @@ class Game
   end
 
   # Checks pawn moves for valid notation
+  # I NEED TO UPDATE PAWN PROMOTIONS TO BE BIDIRECTIONAL. Only evaluates 8th rank (white pawns) currently
   def valid_pawn_notation?(move)
 
     pawn_letters = ["a", "b", "c", "d", "e", "f", "g", "h"]
@@ -1631,7 +1669,7 @@ class Game
   end
 
   # Evaluates whether a move leaves the player's king in check
-  def is_check?(move)
+  def leaves_king_in_check?(move)
     board_save = Marshal.load(Marshal.dump(@board))
     starting_square = get_starting_square(move)
     destination_square = get_destination_square(move)
@@ -1650,7 +1688,7 @@ class Game
           next
         elsif @board[i][j].piece.color != @current_player
           if @board[i][j].piece.attack_range.include?(king_square)
-            undo_move(starting_square, destination_square)
+            @board = board_save
             update_move_attack_ranges
             return true
           end
@@ -1662,6 +1700,30 @@ class Game
 
     @board = board_save
     update_move_attack_ranges
+    return false
+  end
+
+  # Evaluates whether the current player is in check (without evaluating a move to be made)
+  def is_check?
+    king_square = find_king_square
+
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty == true || @board[i][j].piece.color == @current_player
+          j += 1
+          next
+        elsif @board[i][j].piece.color != @current_player
+          if @board[i][j].piece.attack_range.include?(king_square)
+            return true
+          end
+        end
+        j += 1
+      end
+      i += 1
+    end
+
     return false
   end
 
@@ -1681,6 +1743,334 @@ class Game
         j += 1
       end
       i += 1
+    end
+  end
+
+  # Evaluates whether the current player's king is in checkmate.
+  def checkmate?
+    if is_check?
+      if no_safe_squares? && can_capture? == false && can_interpose? == false
+        return true
+      end
+    end
+
+    return false
+  end
+
+  # Sub-method to evaluate whether the king has any safe squares to move to.
+  # Returns true if the king has no safe squares and false if the king has at least one safe square.
+  def no_safe_squares?
+    king_square = find_king_square # something like [1, 2]
+    king_move_range = @board[king_square[0]][king_square[1]].piece.move_range # something like [[1, 2], [1, 3], [0, 0]]
+    enemy_move_range = []
+
+    # Get all the squares on the board covered by opposite-color pieces and put them in one big array.
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty || @board[i][j].piece.color == @current_player
+          j += 1
+          next
+        elsif @board[i][j].piece.color != @current_player
+          @board[i][j].piece.move_range.each do |coordinates|
+            enemy_move_range << coordinates
+          end
+        end
+        j += 1
+      end
+      i += 1
+    end
+
+    # Check each move in the king's move range and see if it is out of the enemy's range.
+    king_move_range.each do |square|
+      if !enemy_move_range.include?(square)
+        return false
+      end
+    end
+
+    return true
+  end
+
+  # Sub-method to see if the player can get out of check by capturing the attacking piece.
+  def can_capture?
+    king_square = find_king_square
+    attacking_pieces = []
+    # Find the piece(s) attacking the king.
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty || @board[i][j].piece.color == @current_player
+          j += 1
+          next
+        elsif @board[i][j].piece.color != @current_player
+          if @board[i][j].piece.attack_range.include?(king_square)
+            attacking_pieces << @board[i][j].piece
+          end
+        end
+        j += 1
+      end
+      i += 1
+    end
+
+    # Can't capture if more than one piece is attacking the king.
+    if attacking_pieces.length > 1
+      return false
+    else
+      attacking_piece_square = [attacking_pieces[0].row, attacking_pieces[0].col]
+
+      # Go through the board and see if the current player has any pieces
+      # that could capture the attacking piece.
+      i = 0
+      while i <= 7
+        j = 0
+        while j <= 7
+          if @board[i][j].empty || @board[i][j].piece.color != @current_player
+            j += 1
+            next
+          elsif @board[i][j].piece.color == @current_player
+            if @board[i][j].piece.attack_range.include?(attacking_piece_square)
+              potential_capture_chess_notation = get_chess_notation_capture(@board[i][j].piece, attacking_piece_square)
+              # Make sure the piece that could potentially capture the attacker is not pinned.
+              if leaves_king_in_check?(potential_capture_chess_notation)
+                j += 1
+                next
+              else
+                return true
+              end
+            end
+          end
+          j += 1
+        end
+        i += 1
+      end
+    end
+
+    return false
+  end
+
+  # Sub-method to see if the player can get out of check by interposing.
+  def can_interpose?
+    # Find the piece(s) attacking the king.
+    king_square = find_king_square
+    attacking_pieces = []
+
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty || @board[i][j].piece.color == @current_player
+          j += 1
+          next
+        elsif @board[i][j].piece.color != @current_player
+          if @board[i][j].piece.attack_range.include?(king_square)
+            attacking_pieces << @board[i][j].piece
+          end
+        end
+        j += 1
+      end
+      i += 1
+    end
+
+    attacking_pieces.each do |piece|
+    end
+
+    # Not possible to interpose if more than one piece is attacking the king.
+    if attacking_pieces.length > 1
+      return false
+    else
+      # Not possible to interpose unless the attacking piece is a bishop, rook, or queen.
+      if attacking_pieces[0].name != "Bishop" && attacking_pieces[0].name != "Rook" &&
+        attacking_pieces[0].name != "Queen"
+        return false
+      else
+        # Get the attack path.
+        attacking_piece_square = [attacking_pieces[0].row, attacking_pieces[0].col]
+        attack_path = get_attack_path(attacking_piece_square, king_square)
+
+        # Go over the board again and look at the current player's pieces.
+        # If any of the current player's pieces can move into the attack path, return true.
+        attack_path.each do |square|
+          i = 0
+          while i <= 7
+            j = 0
+            while j <= 7
+              if @board[i][j].empty || @board[i][j].piece.color != @current_player
+                j += 1
+                next
+              elsif @board[i][j].piece.color == @current_player
+                if @board[i][j].piece.name != "King" && @board[i][j].piece.move_range.include?(square)
+                  # Make sure the piece that could potentially interpose is not pinned.
+                  potential_interpose_chess_notation = get_chess_notation_interpose(@board[i][j].piece, square)
+                  if leaves_king_in_check?(potential_interpose_chess_notation)
+                    j += 1
+                    next
+                  else
+                    return true
+                  end
+                end
+              end
+              j += 1
+            end
+            i += 1
+          end
+        end
+      end
+    end
+
+    return false
+  end
+
+  def get_chess_notation_capture(piece, destination_square)
+    if piece.name == "King"
+      first_char = "K"
+    elsif piece.name == "Queen"
+      first_char = "Q"
+    elsif piece.name == "Rook"
+      first_char = "R"
+    elsif piece.name == "Bishop"
+      first_char = "B"
+    elsif piece.name == "Knight"
+      first_char = "N"
+    elsif piece.name == "WhitePawn"
+      first_char = col_to_chess_notation(piece.col)
+    elsif piece.name == "BlackPawn"
+      first_char = col_to_chess_notation(piece.col)
+    end
+
+    destination_row = row_to_chess_notation(destination_square[0])
+    destination_col = col_to_chess_notation(destination_square[1])
+
+    return "#{first_char}x#{destination_col}#{destination_row}"
+  end
+
+  def get_chess_notation_interpose(piece, destination_square)
+    if piece.name == "Queen"
+      first_char = "Q"
+    elsif piece.name == "Rook"
+      first_char = "R"
+    elsif piece.name == "Bishop"
+      first_char = "B"
+    elsif piece.name == "Knight"
+      first_char = "N"
+    elsif piece.name == "WhitePawn"
+      first_char = col_to_chess_notation(piece.col)
+    elsif piece.name == "BlackPawn"
+      first_char = col_to_chess_notation(piece.col)
+    end
+
+    destination_row = row_to_chess_notation(destination_square[0])
+    destination_col = col_to_chess_notation(destination_square[1])
+
+    if piece.name == "WhitePawn" || piece.name == "BlackPawn"
+      return "#{first_char}#{destination_row}"
+    else
+      return "#{first_char}#{destination_col}#{destination_row}"
+    end
+  end
+  
+  # Sub-sub-method that gets the attack path between the king and an attacking rook/bishop/queen.
+  def get_attack_path(attacking_piece_square, king_square)
+    attack_path = []
+
+    # If the path is along a row
+    if attacking_piece_square[0] == king_square[0]
+      min = attacking_piece_square[1] < king_square[1] ? attacking_piece_square[1] : king_square[1]
+      max = attacking_piece_square[1] > king_square[1] ? attacking_piece_square[1] : king_square[1]
+      i = min + 1
+      while i < max
+        attack_path << [attacking_piece_square[0], i]
+        i += 1
+      end
+    # If the path is along a col
+    elsif attacking_piece_square[1] == king_square[1]
+      min = attacking_piece_square[0] < king_square[0] ? attacking_piece_square[0] : king_square[0]
+      max = attacking_piece_square[0] > king_square[0] ? attacking_piece_square[0] : king_square[0]
+      i = min + 1
+      while i < max
+        attack_path << [i, attacking_piece_square[0]]
+        i += 1
+      end
+    # If the path is along a diagonal
+    else
+      if attacking_piece_square[0] > king_square[0] && attacking_piece_square[1] > king_square[1]
+        i = attacking_piece_square[0] - 1
+        j = attacking_piece_square[1] - 1
+        while i > king_square[0] && j > king_square[1]
+          attack_path << [i, j]
+          i -= 1
+          j -= 1
+        end
+      elsif attacking_piece_square[0] > king_square[0] && attacking_piece_square[1] < king_square[1]
+        i = attacking_piece_square[0] - 1
+        j = attacking_piece_square[1] + 1
+        while i > king_square[0] && j < king_square[1]
+          attack_path << [i, j]
+          i -= 1
+          j += 1
+        end
+      elsif attacking_piece_square[0] < king_square[0] && attacking_piece_square[1] > king_square[1]
+        i = attacking_piece_square[0] + 1
+        j = attacking_piece_square[1] - 1
+        while i < king_square[0] && j > king_square[1]
+          attack_path << [i, j]
+          i += 1
+          j -= 1
+        end
+      elsif attacking_piece_square[0] < king_square[0] && attacking_piece_square[1] < king_square[1]
+        i = attacking_piece_square[0] + 1
+        j = attacking_piece_square[1] + 1
+        while i < king_square[0] && j < king_square[1]
+          attack_path << [i, j]
+          i += 1
+          j += 1
+        end
+      end
+    end
+
+    return attack_path
+  end
+
+  # Takes an integer column and returns the corresponding string letter for chess notation.
+  def col_to_chess_notation(col)
+    if col == 0
+      return "a"
+    elsif col == 1
+      return "b"
+    elsif col == 2
+      return "c"
+    elsif col == 3
+      return "d"
+    elsif col == 4
+      return "e"
+    elsif col == 5
+      return "f"
+    elsif col == 6
+      return "g"
+    elsif col == 7
+      return "h"
+    end
+  end
+
+  # Takes an integer row and returns the corresponding string number for chess notation.
+  def row_to_chess_notation(row)
+    if row == 0
+      return "8"
+    elsif row == 1
+      return "7"
+    elsif row == 2
+      return "6"
+    elsif row == 3
+      return "5"
+    elsif row == 4
+      return "4"
+    elsif row == 5
+      return "3"
+    elsif row == 6
+      return "2"
+    elsif row == 7
+      return "1"
     end
   end
 
