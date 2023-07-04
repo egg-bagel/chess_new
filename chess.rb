@@ -284,7 +284,6 @@ class Bishop
       j -= 1
     end
 
-    puts "legal bishop moves for #{row} #{col} are now #{legal_moves}"
     return legal_moves
   end
 
@@ -966,9 +965,13 @@ class Game
     while checkmate? == false
       print_board
       move = prompt_for_move
+      while is_check?(move)
+        puts "That move leaves your king in check. Try another move."
+        move = prompt_for_move
+      end
       make_move(move)
       print_board
-      update_move_attack_ranges(@board)
+      update_move_attack_ranges
       switch_player
 
 
@@ -1575,6 +1578,28 @@ class Game
     starting_square.image = " "
   end
 
+  # Undoes a move on the board.
+  # Uses the starting square and destination square of the move just made.
+  # NOTE: PROBABLY WON'T END UP NEEDING TO USE THIS METHOD
+  # Using marshal instead to make a deep copy of the board,
+  # this undo method doesn't work for undoing captures
+  def undo_move(starting_square, destination_square)
+
+    starting_square.empty = false
+    starting_square.piece = destination_square.piece
+    starting_square.piece.row = starting_square.row
+    starting_square.piece.col = starting_square.col
+    starting_square.image = destination_square.image
+
+    # PROBLEM HERE
+    # If the last move was a capture, I need to put the old piece back on the destination square.
+    # But this method sets the destination square to always be empty after the undo.
+    destination_square.empty = true
+    destination_square.piece = nil
+    destination_square.image = " "
+  end
+
+  # Toggles @current_player between black and white
   def switch_player
     if @current_player == "white"
       @current_player = "black"
@@ -1583,17 +1608,79 @@ class Game
     end
   end
 
-  def update_move_attack_ranges(board)
-    @white_pieces.each do |piece|
-      piece.board = board
-      piece.move_range = piece.set_move_range(piece.row, piece.col, piece.board)
-      piece.attack_range = piece.set_attack_range(piece.row, piece.col, piece.board)
+  # Updates the move range and attack range for every piece
+  def update_move_attack_ranges
+
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty
+          j += 1
+          next
+        else
+          @board[i][j].piece.board = @board
+          @board[i][j].piece.move_range = @board[i][j].piece.set_move_range(@board[i][j].piece.row, @board[i][j].piece.col, @board[i][j].piece.board)
+          @board[i][j].piece.attack_range = @board[i][j].piece.set_attack_range(@board[i][j].piece.row, @board[i][j].piece.col, @board[i][j].piece.board)
+        end
+        j += 1
+      end
+      i += 1
     end
 
-    @black_pieces.each do |piece|
-      piece.board = board
-      piece.move_range = piece.set_move_range(piece.row, piece.col, piece.board)
-      piece.attack_range = piece.set_attack_range(piece.row, piece.col, piece.board)
+  end
+
+  # Evaluates whether a move leaves the player's king in check
+  def is_check?(move)
+    board_save = Marshal.load(Marshal.dump(@board))
+    starting_square = get_starting_square(move)
+    destination_square = get_destination_square(move)
+    make_move(move)
+    update_move_attack_ranges
+    king_square = find_king_square()
+
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        # Whenever I find a piece on the board that is not the color of @current_player,
+        # look at its attack range and see if king_square is included.
+        if @board[i][j].empty == true || @board[i][j].piece.color == @current_player
+          j += 1
+          next
+        elsif @board[i][j].piece.color != @current_player
+          if @board[i][j].piece.attack_range.include?(king_square)
+            undo_move(starting_square, destination_square)
+            update_move_attack_ranges
+            return true
+          end
+        end
+        j += 1
+      end
+      i += 1
+    end
+
+    @board = board_save
+    update_move_attack_ranges
+    return false
+  end
+
+  # Finds the square the current player's king is on
+  # Returns an array of coordinates [i, j]
+  def find_king_square
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty == true
+          j += 1
+          next
+        elsif @board[i][j].piece.name == "King" && @board[i][j].piece.color == @current_player
+          return [i, j]
+        end
+        j += 1
+      end
+      i += 1
     end
   end
 
