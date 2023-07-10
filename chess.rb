@@ -890,7 +890,7 @@ end
 
 class Game
 
-  attr_accessor :board, :white_pieces, :black_pieces
+  attr_accessor :board, :white_pieces, :black_pieces, :move_log, :move_log_starting_squares
 
   def initialize
     @board = create_board
@@ -898,6 +898,8 @@ class Game
     @black_pieces = []
     set_up_board(@board)
     @current_player = "white"
+    @move_log = []
+    @move_log_starting_squares = []
   end
 
   def create_board
@@ -995,21 +997,49 @@ class Game
 
   def play
     print_board
-    while checkmate? == false
+    while checkmate? == false && stalemate? == false
+      # Gets a legal move in valid chess notation
       move = prompt_for_move
-      while leaves_king_in_check?(move)
-        puts "That move leaves your king in check. Try another move."
-        move = prompt_for_move
+
+      # Check that the move does not leave the player's king in check
+      # Castling is excluded because it is already checked for check in the legal_move? method called in prompt_for_move.
+      if move != "O-O" && move != "O-O-O" && move != "0-0" && move != "0-0-0"
+        while leaves_king_in_check?(move)
+          puts "That move leaves your king in check. Try another move."
+          move = prompt_for_move
+        end
       end
-      make_move(move)
+
+      # Make the move, with special methods for castling
+      if move == "O-O" || move == "0-0"
+        castle_kingside
+      elsif move == "O-O-O" || move == "0-0-0"
+        castle_queenside
+      else
+        make_move(get_starting_square(move), get_destination_square(move))
+      end
+
+      # Update the move logs
+      @move_log << move
+      if move == "O-O" || move == "0-0" || move == "O-O-O" || move == "0-0-0"
+        @move_log_starting_squares << move
+      else
+        @move_log_starting_squares << get_starting_square(move)
+      end
+
       print_board
       update_move_attack_ranges
       switch_player
     end
-    if @current_player == "white"
-      puts "Checkmate! Black wins the game!"
-    elsif @current_player == "black"
-      puts "Checkmate! White wins the game!"
+
+    if checkmate? == true
+      if @current_player == "white"
+        puts "Checkmate! Black wins the game!"
+      elsif @current_player == "black"
+        puts "Checkmate! White wins the game!"
+      end
+    elsif stalemate? == true
+      puts "The game has ended in a stalemate."
     end
   end
 
@@ -1042,6 +1072,11 @@ class Game
     # Valid letters in chess notation
     letter_array = ["R", "N", "B", "Q", "K", "a", "b", "c", "d", "e", "f", "g", "h"]
     move_first_letter = move.slice(0)
+
+    # castling is a valid move that falls into none of the categories below
+    if move == "O-O" || move == "0-0" || move == "O-O-O" || move == "0-0-0"
+      return true
+    end
 
     # If the first letter doesn't indicate a valid piece
     if !letter_array.include?move_first_letter
@@ -1188,35 +1223,61 @@ class Game
       end
     # Capture or disambiguation
     elsif move.length == 4
-      # If the second letter is not x or a valid board letter
-      if second_char != "x" && !board_letters.include?(second_char)
+      # If the second letter is not "x" or a valid board letter or number
+      if second_char != "x" && !board_letters.include?(second_char) && !board_numbers.include?(second_char)
         return false
       # If the third letter is not a valid board letter
       elsif !board_letters.include?(third_char) 
         return false
-      # In the case of a disambiguation,
+      # If, in the case of a letter-based disambiguation (e.g. Nfg5), 
       # if the second board letter is an impossible distance from the first
-      elsif second_char != "x" &&
-            board_letters.index(third_char) != (board_letters.index(second_char) + 1) &&
-            board_letters.index(third_char) != (board_letters.index(second_char) + 2) &&
-            board_letters.index(third_char) != (board_letters.index(second_char) - 1) &&
-            board_letters.index(third_char) != (board_letters.index(second_char) - 2)
-        return false
-      # If the last character is not a valid board letter
+      elsif second_char != "x" && board_letters.include?(second_char)
+        if board_letters.index(third_char) != (board_letters.index(second_char) + 1) &&
+          board_letters.index(third_char) != (board_letters.index(second_char) + 2) &&
+          board_letters.index(third_char) != (board_letters.index(second_char) - 1) &&
+          board_letters.index(third_char) != (board_letters.index(second_char) - 2)
+          return false
+        end
+      # If, in the case of a number-based disambiguation (e.g. N3e5)
+      # if the second board number is an impossible distance from the first
+      elsif second_char != "x" && board_numbers.include?(second_char)
+        if board_numbers.index(fourth_char) != (board_numbers.index(second_char) + 1) &&
+          board_numbers.index(fourth_char) != (board_numbers.index(second_char) + 2) &&
+          board_numbers.index(fourth_char) != (board_numbers.index(second_char) - 1) &&
+          board_numbers.index(fourth_char) != (board_numbers.index(second_char) - 2)
+          return false
+        end
+      # If the last character is not a valid board number
       elsif !board_numbers.include?(fourth_char) 
         return false
       end
     # Capture with disambiguation
     elsif move.length == 5 
-      if !board_letters.include?(second_char)
+      # if the second character is not a valid board letter (e.g. Nbxc4) or number (e.g. N3xe4)
+      if !board_letters.include?(second_char) && !board_numbers.include?(second_char)
         return false
+      # if the third character is not a capture
       elsif third_char != "x"
         return false
-      elsif board_letters.index(fourth_char) != (board_letters.index(second_char) + 1) &&
-            board_letters.index(fourth_char) != (board_letters.index(second_char) + 2) &&
-            board_letters.index(fourth_char) != (board_letters.index(second_char) - 1) &&
-            board_letters.index(fourth_char) != (board_letters.index(second_char) - 2)
-        return false
+      # In the case of a letter-based disambiguation,
+      # if the second board letter is an impossible distance from the first
+      elsif board_letters.include?(second_char)
+        if board_letters.index(fourth_char) != (board_letters.index(second_char) + 1) &&
+          board_letters.index(fourth_char) != (board_letters.index(second_char) + 2) &&
+          board_letters.index(fourth_char) != (board_letters.index(second_char) - 1) &&
+          board_letters.index(fourth_char) != (board_letters.index(second_char) - 2)
+          return false
+        end
+      # In the case of a number-based disambiguation,
+      # if the second board number is an impossible distance from the first
+      elsif board_numbers.include?(second_char)
+        if board_numbers.index(fifth_char) != (board_numbers.index(second_char) + 1) &&
+          board_numbers.index(fifth_char) != (board_numbers.index(second_char) + 2) &&
+          board_numbers.index(fifth_char) != (board_numbers.index(second_char) - 1) &&
+          board_numbers.index(fifth_char) != (board_numbers.index(second_char) - 2)
+          return false
+        end
+      # If the last character is not a valid board number
       elsif !board_numbers.include?(fifth_char)
         return false
       end
@@ -1249,7 +1310,7 @@ class Game
       end
     # Capture or disambiguation
     elsif move.length == 4 
-      if second_char != "x" && !board_letters.include?(second_char)
+      if second_char != "x" && !board_letters.include?(second_char) && !board_numbers.include?(second_char)
         return false
       elsif !board_letters.include?(third_char)
         return false
@@ -1258,7 +1319,7 @@ class Game
       end
     # Capture with disambiguation
     elsif move.length == 5
-      if !board_letters.include?(second_char)
+      if !board_letters.include?(second_char) && !board_numbers.include?(second_char)
         return false
       elsif third_char != "x"
         return false
@@ -1306,9 +1367,11 @@ class Game
       end
     # Capture with disambiguation
     elsif move.length == 5
-      if !board_letters.include?(second_char) || !board_letters.include?(fourth_char)
+      if !board_letters.include?(second_char) && !board_numbers.include?(second_char)
         return false
       elsif third_char != "x"
+        return false
+      elsif !board_letters.include?(fourth_char)
         return false
       elsif !board_numbers.include?(fifth_char)
         return false
@@ -1343,7 +1406,7 @@ class Game
       end
     # Queen capture or regular move disambiguation
     elsif move.length == 4
-      if second_char != "x" && !board_letters.include?(second_char)
+      if second_char != "x" && !board_letters.include?(second_char) && !board_numbers.include?(second_char)
         return false
       elsif !board_letters.include?(third_char)
         return false
@@ -1352,9 +1415,11 @@ class Game
       end
     # Queen capture with disambiguation
     elsif move.length == 5
-      if !board_letters.include?(second_char) || !board_letters.include?(fourth_char)
+      if !board_letters.include?(second_char) || !board_numbers.include?(second_char)
         return false
       elsif third_char != "x"
+        return false
+      elsif !board_letters.include?(fourth_char)
         return false
       elsif !board_numbers.include?(fifth_char)
         return false
@@ -1403,31 +1468,216 @@ class Game
   # Returns true if move is legal to play on the board
   def legal_move?(move)
     move_type = get_move_type(move)
-    destination_square = get_destination_square(move) # returns @board[5][4] for ex.
-    capture = is_capture?(move)
+    if move_type != "castle kingside" && move_type != "castle queenside"
+      destination_square = get_destination_square(move) # returns @board[5][4] for ex.
+      capture = is_capture?(move)
+    end
 
-    i = 0
-    while i <= 7
-      j = 0
-      while j <= 7
-        if @board[i][j].empty == true
-          j += 1
-          next
-        elsif @board[i][j].empty == false && @board[i][j].piece.name == move_type &&
-          @board[i][j].piece.color == @current_player
-          if capture
-            if check_attack_range(@board[i][j].piece, destination_square)
-              return true
+    # if castle kingside
+    if move_type == "castle kingside"
+
+      if @current_player == "white"
+        # Check that f1 and g1 are empty, the king is on e1, and the rook is on h1.
+        if @board[7][5].empty && @board[7][6].empty && 
+          @board[7][4].piece.name == "King" && @board[7][4].piece.color == @current_player &&
+          @board[7][7].piece.name == "Rook" && @board[7][7].piece.color == @current_player
+          
+          # Check that e1, f1, and g1 are all out of range of check.
+          i = 0
+          while i <= 7
+            j = 0
+            while j <= 7
+              if @board[i][j].empty || @board[i][j].piece.color == "white"
+                j += 1
+                next
+              elsif @board[i][j].piece.color == "black"
+                if @board[i][j].piece.attack_range.include?([7, 4]) || @board[i][j].piece.move_range.include?([7, 5]) ||
+                  @board[i][j].piece.move_range.include?([7, 6])
+                  return false
+                end
+              end
+              j += 1
             end
-          else
-            if check_move_range(@board[i][j].piece, destination_square)
-              return true
+            i += 1
+          end
+
+          # Check that the king and the rook have not been moved yet.
+          i = 0
+          while i < @move_log.length
+            if @move_log[i].slice(0) == "K"
+              return false
+            elsif @move_log[i].slice(0) == "R"
+              if @move_log_starting_squares[i] == @board[7][7]
+                return false
+              end
+            end
+            i += 2
+          end
+        else
+          return false
+        end
+
+        return true
+
+      elsif @current_player == "black"
+        # Check that f8 and g8 are empty, the king is on e8, and the rook is on h8.
+        if @board[0][5].empty && @board[0][6].empty && 
+          @board[0][4].piece.name == "King" && @board[0][4].piece.color == @current_player &&
+          @board[0][7].piece.name == "Rook" && @board[0][7].piece.color == @current_player
+          
+          # Check that e1, f1, and g1 are all out of range of check.
+          i = 0
+          while i <= 7
+            j = 0
+            while j <= 7
+              if @board[i][j].empty || @board[i][j].piece.color == "black"
+                j += 1
+                next
+              elsif @board[i][j].piece.color == "white"
+                if @board[i][j].piece.attack_range.include?([0, 4]) || @board[i][j].piece.move_range.include?([0, 5]) ||
+                  @board[i][j].piece.move_range.include?([0, 6])
+                  return false
+                end
+              end
+              j += 1
+            end
+            i += 1
+          end
+
+          # Check that the king and the rook have not been moved yet.
+          i = 1
+          while i < @move_log.length
+            if @move_log[i].slice(0) == "K"
+              return false
+            elsif @move_log[i].slice(0) == "R"
+              if @move_log_starting_squares[i] == @board[0][7]
+                return false
+              end
+            end
+            i += 2
+          end
+        else
+          return false
+        end
+
+        return true
+      end
+
+    # if castle queenside
+    elsif move_type == "castle queenside"
+
+      if @current_player == "white"
+        # Check that d1, c1, and b1 are empty, the king is on e1, and the rook is on a1.
+        if @board[7][1].empty && @board[7][2].empty && @board[7][3].empty &&
+          @board[7][4].piece.name == "King" && @board[7][4].piece.color == @current_player &&
+          @board[7][0].piece.name == "Rook" && @board[7][0].piece.color == @current_player
+          
+          # Check that e1, d1, c1, and b1 are all out of range of check.
+          i = 0
+          while i <= 7
+            j = 0
+            while j <= 7
+              if @board[i][j].empty || @board[i][j].piece.color == "white"
+                j += 1
+                next
+              elsif @board[i][j].piece.color == "black"
+                if @board[i][j].piece.attack_range.include?([7, 4]) || @board[i][j].piece.move_range.include?([7, 3]) ||
+                  @board[i][j].piece.move_range.include?([7, 2]) || @board[i][j].piece.move_range.include?([7, 1])
+                  return false
+                end
+              end
+              j += 1
+            end
+            i += 1
+          end
+
+          # Check that the king and the rook have not been moved yet.
+          i = 0
+          while i < @move_log.length
+            if @move_log[i].slice(0) == "K"
+              return false
+            elsif @move_log[i].slice(0) == "R"
+              if @move_log_starting_squares[i] == @board[7][0]
+                return false
+              end
+            end
+            i += 2
+          end
+        else
+          return false
+        end
+
+        return true
+
+      elsif @current_player == "black"
+        # Check that d8, c8, and b8 are empty, the king is on e8, and the rook is on a8.
+        if @board[0][3].empty && @board[0][2].empty && @board[0][1].empty &&
+          @board[0][4].piece.name == "King" && @board[0][4].piece.color == @current_player &&
+          @board[0][0].piece.name == "Rook" && @board[0][0].piece.color == @current_player
+          
+          # Check that d8, c8, and b8 are all out of range of check.
+          i = 0
+          while i <= 7
+            j = 0
+            while j <= 7
+              if @board[i][j].empty || @board[i][j].piece.color == "black"
+                j += 1
+                next
+              elsif @board[i][j].piece.color == "white"
+                if @board[i][j].piece.attack_range.include?([0, 4]) || @board[i][j].piece.move_range.include?([0, 3]) ||
+                  @board[i][j].piece.move_range.include?([0, 2]) || @board[i][j].piece.move_range.include?([0, 1])
+                  return false
+                end
+              end
+              j += 1
+            end
+            i += 1
+          end
+
+          # Check that the king and the rook have not been moved yet.
+          i = 1
+          while i < @move_log.length
+            if @move_log[i].slice(0) == "K"
+              return false
+            elsif @move_log[i].slice(0) == "R"
+              if @move_log_starting_squares[i] == @board[0][0]
+                return false
+              end
+            end
+            i += 2
+          end
+        else
+          return false
+        end
+
+        return true
+      end
+
+    # If any move other than castling
+    else
+      i = 0
+      while i <= 7
+        j = 0
+        while j <= 7
+          if @board[i][j].empty == true
+            j += 1
+            next
+          elsif @board[i][j].empty == false && @board[i][j].piece.name == move_type &&
+            @board[i][j].piece.color == @current_player
+            if capture
+              if check_attack_range(@board[i][j].piece, destination_square)
+                return true
+              end
+            else
+              if check_move_range(@board[i][j].piece, destination_square)
+                return true
+              end
             end
           end
+          j += 1
         end
-        j += 1
+        i += 1
       end
-      i += 1
     end
 
     return false
@@ -1516,35 +1766,106 @@ class Game
   def get_starting_square(move)
     move_type = get_move_type(move) # returns a string "Knight", etc. 
     destination_square = get_destination_square(move) # returns something like @board[3][4]
-    
-    i = 0 # row
-    while i <= 7
-      j = 0
-      while j <= 7
-        if @board[i][j].empty
-          j += 1
-          next
-        elsif @board[i][j].empty == false && @board[i][j].piece.color == @current_player &&
-          @board[i][j].piece.name == move_type
-          if is_capture?(move)
-            if check_attack_range(@board[i][j].piece, destination_square)
-              if move_type == "WhitePawn" || move_type == "BlackPawn"
-                if get_pawn_column(move) == j # I may have to expand this type of logic later for other disambiguations.
+
+    if move_type != "WhitePawn" && move_type != "BlackPawn" && move_type != "King"
+      disambig = is_disambig?(move)
+    end
+
+    if disambig
+      # how to search the board if the move contains a disambiguation
+      board_letters = ["a", "b", "c", "d", "e", "f", "g", "h"]
+      board_numbers = ["1", "2", "3", "4", "5", "6", "7", "8"]
+      second_char = move.slice(1)
+
+      if board_letters.include?(second_char) # search only the given column for the piece
+        col = letter_to_col(second_char)
+        i = 0
+        while i <= 7
+          if @board[i][col].empty
+            i += 1
+            next
+          elsif @board[i][col].empty == false && @board[i][col].piece.color == @current_player &&
+            @board[i][col].piece.name == move_type
+            if is_capture?(move)
+              if check_attack_range(@board[i][col].piece, destination_square)
+                return @board[i][col]
+              end
+            else
+              if check_move_range(@board[i][col].piece, destination_square)
+                return @board[i][col]
+              end
+            end
+          end
+          i += 1
+        end
+
+      elsif board_numbers.include?(second_char) # search only the given row for the piece
+        row = number_to_row(second_char)
+        i = 0
+        while i <= 7
+          if @board[row][i].empty
+            i += 1
+            next
+          elsif @board[row][i].empty == false && @board[row][i].piece.color == @current_player &&
+            @board[row][i].piece.name == move_type
+            if is_capture?(move)
+              if check_attack_range(@board[row][i].piece, destination_square)
+                return @board[row][i]
+              end
+            else
+              if check_move_range(@board[row][i].piece, destination_square)
+                return @board[row][i]
+              end
+            end
+          end
+          i += 1
+        end
+      end
+
+    else
+      # search the whole board if the move does not contain a disambiguation
+      i = 0 # row
+      while i <= 7
+        j = 0
+        while j <= 7
+          if @board[i][j].empty
+            j += 1
+            next
+          elsif @board[i][j].empty == false && @board[i][j].piece.color == @current_player &&
+            @board[i][j].piece.name == move_type
+            if is_capture?(move)
+              if check_attack_range(@board[i][j].piece, destination_square)
+                if move_type == "WhitePawn" || move_type == "BlackPawn"
+                  if get_pawn_column(move) == j # Make sure to use the right pawn if more than one could capture
+                    return @board[i][j]
+                  end
+                else
                   return @board[i][j]
                 end
-              else
+              end
+            else
+              if check_move_range(@board[i][j].piece, destination_square)
                 return @board[i][j]
               end
             end
-          else
-            if check_move_range(@board[i][j].piece, destination_square)
-              return @board[i][j]
-            end
           end
+          j += 1
         end
-        j += 1
+        i += 1
       end
-      i += 1
+    end
+  end
+
+  # Returns true if a given move contains a disambiguation (e.g. Ngxe5 or R1d4)
+  def is_disambig?(move)
+    board_letters = ["a", "b", "c", "d", "e", "f", "g", "h"]
+    board_numbers = ["1", "2", "3", "4", "5", "6", "7", "8"]
+    second_char = move.slice(1)
+
+    if move.length > 3 && (board_letters.include?(second_char) || board_numbers.include?(second_char))
+      return true
+    else
+      return false
     end
   end
 
@@ -1552,7 +1873,15 @@ class Game
   def get_move_type(move)
     first_letter = move.slice(0)
 
-    if first_letter == "N"
+    if move == "O-O"
+      move_type = "castle kingside"
+    elsif move == "0-0"
+      move_type = "castle kingside"
+    elsif move == "O-O-O"
+      move_type = "castle queenside"
+    elsif move == "0-0-0"
+      move_type = "castle queenside"
+    elsif first_letter == "N"
       move_type = "Knight"
     elsif first_letter == "B"
       move_type = "Bishop"
@@ -1571,6 +1900,48 @@ class Game
     end
 
     return move_type
+  end
+
+  # Takes a one-letter string and returns the corresponding column number on the board
+  def letter_to_col(letter)
+    if letter == "a"
+      return 0
+    elsif letter == "b"
+      return 1
+    elsif letter == "c"
+      return 2
+    elsif letter == "d"
+      return 3
+    elsif letter == "e"
+      return 4
+    elsif letter == "f"
+      return 5
+    elsif letter == "g"
+      return 6
+    elsif letter == "h"
+      return 7
+    end
+  end
+
+  # Takes a number string and returns the corresponding row number on the board
+  def number_to_row(number)
+    if number == "1"
+      return 7
+    elsif number == "2"
+      return 6
+    elsif number == "3"
+      return 5
+    elsif number == "4"
+      return 4
+    elsif number == "5"
+      return 3
+    elsif number == "6"
+      return 2
+    elsif number == "7"
+      return 1
+    elsif number == "8"
+      return 0
+    end
   end
 
   # Takes a pawn move in chess notation
@@ -1601,9 +1972,7 @@ class Game
   end
 
   # Makes a move on the board.
-  def make_move(move)
-    starting_square = get_starting_square(move)
-    destination_square = get_destination_square(move)
+  def make_move(starting_square, destination_square)
 
     destination_square.empty = false
     destination_square.piece = starting_square.piece
@@ -1614,6 +1983,106 @@ class Game
     starting_square.empty = true
     starting_square.piece = nil
     starting_square.image = " "
+  end
+
+  # Special method for making the castle kingside move
+  def castle_kingside
+    if @current_player == "white"
+      # move the king
+      @board[7][6].empty = false
+      @board[7][6].piece = @board[7][4].piece
+      @board[7][6].piece.row = 7
+      @board[7][6].piece.col = 6
+      @board[7][6].image = @board[7][4].image
+
+      @board[7][4].empty = true
+      @board[7][4].piece = nil
+      @board[7][4].image = " "
+
+      # move the rook
+      @board[7][5].empty = false
+      @board[7][5].piece = @board[7][7].piece
+      @board[7][5].piece.row = 7
+      @board[7][5].piece.col = 5
+      @board[7][5].image = @board[7][7].image
+
+      @board[7][7].empty = true
+      @board[7][7].piece = nil
+      @board[7][7].image = " "
+
+    elsif @current_player == "black"
+      # move the king
+      @board[0][6].empty = false
+      @board[0][6].piece = @board[0][4].piece
+      @board[0][6].piece.row = 0
+      @board[0][6].piece.col = 6
+      @board[0][6].image = @board[0][4].image
+
+      @board[0][4].empty = true
+      @board[0][4].piece = nil
+      @board[0][4].image = " "
+
+      # move the rook
+      @board[0][5].empty = false
+      @board[0][5].piece = @board[0][7].piece
+      @board[0][5].piece.row = 0
+      @board[0][5].piece.col = 5
+      @board[0][5].image = @board[0][7].image
+
+      @board[0][7].empty = true
+      @board[0][7].piece = nil
+      @board[0][7].image = " "
+    end
+  end
+
+  # Special method for making the castle queenside move
+  def castle_queenside
+    if @current_player == "white"
+      # move the king
+      @board[7][2].empty = false
+      @board[7][2].piece = @board[7][4].piece
+      @board[7][2].piece.row = 7
+      @board[7][2].piece.col = 2
+      @board[7][2].image = @board[7][4].image
+
+      @board[7][4].empty = true
+      @board[7][4].piece = nil
+      @board[7][4].image = " "
+
+      # move the rook
+      @board[7][3].empty = false
+      @board[7][3].piece = @board[7][0].piece
+      @board[7][3].piece.row = 7
+      @board[7][3].piece.col = 3
+      @board[7][3].image = @board[7][0].image
+
+      @board[7][0].empty = true
+      @board[7][0].piece = nil
+      @board[7][0].image = " "
+      
+    elsif @current_player == "black"
+      # move the king
+      @board[0][2].empty = false
+      @board[0][2].piece = @board[0][4].piece
+      @board[0][2].piece.row = 0
+      @board[0][2].piece.col = 2
+      @board[0][2].image = @board[0][4].image
+
+      @board[0][4].empty = true
+      @board[0][4].piece = nil
+      @board[0][4].image = " "
+
+      # move the rook
+      @board[0][3].empty = false
+      @board[0][3].piece = @board[0][0].piece
+      @board[0][3].piece.row = 0
+      @board[0][3].piece.col = 3
+      @board[0][3].image = @board[0][0].image
+
+      @board[0][0].empty = true
+      @board[0][0].piece = nil
+      @board[0][0].image = " "
+    end
   end
 
   # Undoes a move on the board.
@@ -1673,9 +2142,9 @@ class Game
     board_save = Marshal.load(Marshal.dump(@board))
     starting_square = get_starting_square(move)
     destination_square = get_destination_square(move)
-    make_move(move)
+    make_move(starting_square, destination_square)
     update_move_attack_ranges
-    king_square = find_king_square()
+    king_square = find_king_square
 
     i = 0
     while i <= 7
@@ -1757,6 +2226,48 @@ class Game
     return false
   end
 
+  # Evaluates whether the current position is a stalemate.
+  def stalemate?
+
+    if is_check? == false && no_safe_squares?
+
+      i = 0
+      while i <= 7
+        j = 0
+        while j <= 7
+          if @board[i][j].empty || @board[i][j].piece.color != @current_player
+            j += 1
+            next
+          else
+            # For each move in the non-empty move or attack range, check whether it would leave the king in check.
+            # Return false only if at least one move does not leave the king in check.
+            if @board[i][j].piece.name != "King" && !@board[i][j].piece.move_range.empty? 
+              @board[i][j].piece.move_range.each do |coordinates|
+                move = get_chess_notation_interpose(@board[i][j].piece, coordinates)
+                if !leaves_king_in_check?(move)
+                  return false
+                end
+              end
+            elsif @board[i][j].piece.name != "King" && !@board[i][j].piece.attack_range.empty?
+              @board[i][j].piece.attack_range each do |coordinates|
+                move = get_chess_notation_capture(@board[i][j].piece, coordinates)
+                if !leaves_king_in_check(move)
+                  return false
+                end
+              end
+            end
+          end
+          j += 1
+        end
+        i += 1
+      end
+    else
+      return false
+    end
+
+    return true
+  end
+
   # Sub-method to evaluate whether the king has any safe squares to move to.
   # Returns true if the king has no safe squares and false if the king has at least one safe square.
   def no_safe_squares?
@@ -1773,8 +2284,40 @@ class Game
           j += 1
           next
         elsif @board[i][j].piece.color != @current_player
-          @board[i][j].piece.move_range.each do |coordinates|
-            enemy_move_range << coordinates
+          # Pawns attack squares differently than the rest of the pieces
+          if @board[i][j].piece.name == "WhitePawn"
+            
+            if i - 1 >= 0 && j + 1 <= 7
+              if @board[i - 1][j + 1].empty
+                enemy_move_range << [i - 1, j + 1]
+              end
+            end
+
+            if i - 1 >= 0 && j - 1 >= 0
+              if @board[i - 1][j - 1].empty
+                enemy_move_range << [i - 1, j - 1]
+              end
+            end
+
+          elsif @board[i][j].piece.name == "BlackPawn"
+
+            if i + 1 <= 7 && j + 1 <= 7
+              if @board[i + 1][j + 1].empty
+                enemy_move_range << [i + 1, j + 1]
+              end
+            end
+
+            if i + 1 <= 7 && j - 1 >= 0
+              if @board[i + 1][j - 1].empty
+                enemy_move_range << [i + 1, j - 1]
+              end
+            end
+
+          else
+            # The below only works for pieces that are not pawns
+            @board[i][j].piece.move_range.each do |coordinates|
+              enemy_move_range << coordinates
+            end
           end
         end
         j += 1
