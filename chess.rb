@@ -20,7 +20,7 @@ class WhitePawn
     if row == 6
       legal_moves.push([row - 1, col]) if board[row - 1][col].empty == true
       legal_moves.push([row - 2, col]) if board[row - 1][col].empty == true && board[row - 2][col].empty == true
-    else
+    elsif (row - 1) >= 0
       legal_moves.push([row - 1, col]) if board[row - 1][col].empty == true
     end
 
@@ -110,7 +110,7 @@ class BlackPawn
     if row == 1
       legal_moves.push([row + 1, col]) if board[row + 1][col].empty == true
       legal_moves.push([row + 2, col]) if board[row + 1][col].empty == true && board[row + 2][col].empty == true
-    else
+    elsif (row + 1) <= 7
       legal_moves.push([row + 1, col]) if board[row + 1][col].empty == true
     end
 
@@ -1226,11 +1226,10 @@ class Game
   end
 
   # Checks pawn moves for valid notation
-  # I NEED TO UPDATE PAWN PROMOTIONS TO BE BIDIRECTIONAL. Only evaluates 8th rank (white pawns) currently
   def valid_pawn_notation?(move)
 
     pawn_letters = ["a", "b", "c", "d", "e", "f", "g", "h"]
-    pawn_numbers = ["3", "4", "5", "6", "7"]
+    pawn_numbers = ["2", "3", "4", "5", "6", "7"]
     piece_letters = ["R", "N", "B", "Q"]
 
     first_char = move.slice(0)
@@ -1246,12 +1245,12 @@ class Game
 
     # Simple pawn push
     if move.length == 2 
-      if !second_char.to_i.between?(3, 7)
+      if !second_char.to_i.between?(2, 7)
         return false
       end
     # Push a pawn to promotion
     elsif move.length == 3 
-      if second_char != "8"
+      if second_char != "8" && second_char != "1"
         return false
       elsif !piece_letters.include?(third_char)
         return false
@@ -1270,7 +1269,7 @@ class Game
     elsif move.length == 5
       if second_char != "x"
         return false
-      elsif fourth_char != "8"
+      elsif fourth_char != "8" && fourth_char != "1"
         return false
       elsif pawn_letters.index(third_char) != (pawn_letters.index(first_char) + 1) &&
             pawn_letters.index(third_char) != (pawn_letters.index(first_char) - 1) 
@@ -1554,6 +1553,7 @@ class Game
     move_type = get_move_type(move)
     if move_type != "castle kingside" && move_type != "castle queenside"
       destination_square = get_destination_square(move) # returns [a, b]
+      puts "destination square is #{destination_square}"
       capture = is_capture?(move)
     end
 
@@ -1771,8 +1771,13 @@ class Game
   # Takes a move in chess notation and returns the destination square
   # as an array of coordinates (e.g. [4, 5])
   def get_destination_square(move)
-    move_number = move[-1] # this is a number 1-8
-    move_letter = move[-2] # this is a letter a-h
+    if move[-1] != "Q" && move[-1] != "R" && move[-1] != "B" && move[-1] != "N"
+      move_number = move[-1] # this is a number 1-8
+      move_letter = move[-2] # this is a letter a-h
+    else
+      move_number = move[-2]
+      move_letter = move[-3]
+    end
 
     if move_number == "8"
       move_row = 0
@@ -2058,6 +2063,7 @@ class Game
   # Makes a move on the board.
   def make_move(starting_square, destination_square, move)
 
+    # If the move is an en passant capture
     if en_passant?(starting_square, destination_square, move)
       if get_move_type(move) == "WhitePawn"
         @board[destination_square[0] + 1][destination_square[1]].empty = true
@@ -2070,15 +2076,43 @@ class Game
       end
     end
 
-    @board[destination_square[0]][destination_square[1]].empty = false
-    @board[destination_square[0]][destination_square[1]].piece = @board[starting_square[0]][starting_square[1]].piece
-    @board[destination_square[0]][destination_square[1]].piece.row = @board[destination_square[0]][destination_square[1]].row
-    @board[destination_square[0]][destination_square[1]].piece.col = @board[destination_square[0]][destination_square[1]].col
-    @board[destination_square[0]][destination_square[1]].image = @board[starting_square[0]][starting_square[1]].image
+    # If the move is a pawn promotion
+    if pawn_promotion?(starting_square, destination_square, move)
 
-    @board[starting_square[0]][starting_square[1]].empty = true
-    @board[starting_square[0]][starting_square[1]].piece = nil
-    @board[starting_square[0]][starting_square[1]].image = " "
+      if move[-1] == "Q"
+        @board[destination_square[0]][destination_square[1]].piece = Queen.new(destination_square[0], destination_square[1], @current_player)
+        @board[destination_square[0]][destination_square[1]].image = @board[destination_square[0]][destination_square[1]].piece.image
+        @board[destination_square[0]][destination_square[1]].empty = false
+      elsif move[-1] == "R"
+        @board[destination_square[0]][destination_square[1]].piece = Rook.new(destination_square[0], destination_square[1], @current_player)
+        @board[destination_square[0]][destination_square[1]].image = @board[destination_square[0]][destination_square[1]].piece.image
+        @board[destination_square[0]][destination_square[1]].empty = false
+      elsif move[-1] == "B"
+        @board[destination_square[0]][destination_square[1]].piece = Bishop.new(destination_square[0], destination_square[1], @current_player)
+        @board[destination_square[0]][destination_square[1]].image = @board[destination_square[0]][destination_square[1]].piece.image
+        @board[destination_square[0]][destination_square[1]].empty = false
+      elsif move[-1] == "N"
+        @board[destination_square[0]][destination_square[1]].piece = Knight.new(destination_square[0], destination_square[1], @current_player)
+        @board[destination_square[0]][destination_square[1]].image = @board[destination_square[0]][destination_square[1]].piece.image
+        @board[destination_square[0]][destination_square[1]].empty = false
+      end
+
+      @board[starting_square[0]][starting_square[1]].empty = true
+      @board[starting_square[0]][starting_square[1]].piece = nil
+      @board[starting_square[0]][starting_square[1]].image = " "
+    
+    # If the move is not a pawn promotion
+    else
+      @board[destination_square[0]][destination_square[1]].empty = false
+      @board[destination_square[0]][destination_square[1]].piece = @board[starting_square[0]][starting_square[1]].piece
+      @board[destination_square[0]][destination_square[1]].piece.row = @board[destination_square[0]][destination_square[1]].row
+      @board[destination_square[0]][destination_square[1]].piece.col = @board[destination_square[0]][destination_square[1]].col
+      @board[destination_square[0]][destination_square[1]].image = @board[starting_square[0]][starting_square[1]].image
+
+      @board[starting_square[0]][starting_square[1]].empty = true
+      @board[starting_square[0]][starting_square[1]].piece = nil
+      @board[starting_square[0]][starting_square[1]].image = " "
+    end
   end
 
   # Returns true if the move is an en passant capture.
@@ -2098,6 +2132,25 @@ class Game
       end
 
       return false
+    end
+
+    return false
+  end
+
+  # Returns true if the move is a pawn promotion.
+  def pawn_promotion?(starting_square, destination_square, move)
+    if get_move_type(move) == "WhitePawn"
+      if starting_square[0] == 1 && destination_square[0] == 0
+        return true
+      else
+        return false
+      end
+    elsif get_move_type(move) == "BlackPawn"
+      if starting_square[0] == 6 && destination_square[0] == 7
+        return true
+      else
+        return false
+      end
     end
 
     return false
