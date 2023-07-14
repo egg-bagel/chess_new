@@ -1083,7 +1083,7 @@ class Game
 
   def play
     print_board
-    while checkmate? == false && stalemate? == false
+    while checkmate? == false && stalemate? == false && insufficient_material? == false
       # Gets a legal move in valid chess notation
       move = prompt_for_move
 
@@ -1123,7 +1123,9 @@ class Game
         puts "Checkmate! White wins the game!"
       end
     elsif stalemate? == true
-      puts "The game has ended in a stalemate."
+      puts "The game has ended in a draw by stalemate."
+    elsif insufficient_material? == true
+      puts "The game has ended in a draw because neither side has enough material to force a checkmate."
     end
   end
 
@@ -2793,6 +2795,89 @@ class Game
     elsif row == 7
       return "1"
     end
+  end
+
+  # Returns true if there is insufficient material on the board for either player to checkmate the other.
+  def insufficient_material?
+    # Go over the whole board and put the black pieces in one array and the white pieces in another.
+    all_white_pieces = []
+    all_black_pieces = []
+
+    # get arrays containing the names of all the pieces on the board
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty
+          j += 1
+          next
+        else
+          if @board[i][j].piece.color == "white"
+            all_white_pieces << @board[i][j].piece.name
+          elsif @board[i][j].piece.color == "black"
+            all_black_pieces << @board[i][j].piece.name
+          end
+        end
+        j += 1
+      end
+      i += 1
+    end
+
+    # Return false if either side has more than 3 pieces on the board
+    if all_white_pieces.length > 3 || all_black_pieces.length > 3 
+      return false
+
+    # If white has only a king
+    elsif all_white_pieces.length == 1
+      # If black has only a king
+      if all_black_pieces.length == 1
+        return true
+      # If black has 2 pieces and they are a king/bishop or king/knight
+      elsif all_black_pieces.length == 2
+        if all_black_pieces.include?("Knight") || all_black_pieces.include?("Bishop")
+          return true
+        else
+          return false
+        end
+      # If black has 3 pieces and they are king/knight/knight
+      elsif all_black_pieces.length == 3
+        if all_black_pieces.uniq.length == 2 && all_black_pieces.uniq.include?("Knight")
+          return true
+        else
+          return false
+        end
+      else
+        return false
+      end
+
+    # If white has two pieces on the board and the second piece is a knight or a bishop
+    elsif all_white_pieces.length == 2 && (all_white_pieces.include?("Knight") || all_white_pieces.include?("Bishop"))
+      # If black has only a king
+      if all_black_pieces.length == 1
+        return true
+      # If black has 2 pieces and they are a king/bishop or king/knight
+      elsif all_black_pieces.length == 2
+        if all_black_pieces.include?("Knight") || all_black_pieces.include?("Bishop")
+          return true
+        else
+          return false
+        end
+      else
+        return false
+      end
+    
+    # If white has a king and two knights
+    elsif all_white_pieces.length == 3 && all_white_pieces.uniq.length == 2 && all_white_pieces.uniq.include?("Knight")
+      if all_black_pieces.length == 1
+        return true
+      else
+        return false
+      end
+
+    else
+      return false
+    end
+
   end
 
 end
