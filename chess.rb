@@ -28,7 +28,7 @@ class WhitePawn
   end
 
   # Sets the range of legal attacks for a white pawn
-  def set_attack_range(row, col, board)
+  def set_attack_range(row, col, board, move_log, move_log_starting_squares)
     legal_captures = []
 
     if (row - 1) >= 0 && (col + 1) <= 7
@@ -43,7 +43,48 @@ class WhitePawn
       end
     end
 
+    # En passant captures
+    if move_log && move_log_starting_squares
+      if row == 3 && (col + 1) <= 7
+        if (board[row][col + 1].empty == false) && (board[row][col + 1].piece.name == "BlackPawn") &&
+          move_log[-1] == "#{col_to_chess_notation(col + 1)}5" && move_log_starting_squares[-1][0] == 1 &&
+          move_log_starting_squares[-1][1] == col + 1
+          legal_captures.push([row - 1, col + 1])
+        end
+      end
+
+      if row == 3 && (col - 1) >= 0
+        if (board[row][col - 1].empty == false) && (board[row][col - 1].piece.name == "BlackPawn") &&
+          move_log[-1] == "#{col_to_chess_notation(col - 1)}5" && move_log_starting_squares[-1][0] == 1 &&
+          move_log_starting_squares[-1][1] == col - 1
+          legal_captures.push([row - 1, col - 1])
+        end
+      end
+    end
+
     return legal_captures
+  end
+
+  # Takes an integer column and returns the corresponding string letter in chess notation.
+  # Used to determine whether en passant capture is legal.
+  def col_to_chess_notation(col)
+    if col == 0
+      return "a"
+    elsif col == 1
+      return "b"
+    elsif col == 2
+      return "c"
+    elsif col == 3
+      return "d"
+    elsif col == 4
+      return "e"
+    elsif col == 5
+      return "f"
+    elsif col == 6
+      return "g"
+    elsif col == 7
+      return "h"
+    end
   end
 
 end
@@ -76,7 +117,7 @@ class BlackPawn
     return legal_moves
   end
 
-  def set_attack_range(row, col, board)
+  def set_attack_range(row, col, board, move_log, move_log_starting_squares)
     legal_captures = []
 
     if (row + 1) <= 7 && (col + 1) <= 7
@@ -91,7 +132,48 @@ class BlackPawn
       end
     end
 
+    # En passant captures
+    if move_log && move_log_starting_squares
+      if row == 4 && (col + 1) <= 7
+        if (board[row][col + 1].empty == false) && (board[row][col + 1].piece.name == "WhitePawn") &&
+          move_log[-1] == "#{col_to_chess_notation(col + 1)}4" && move_log_starting_squares[-1][0] == 6 &&
+          move_log_starting_squares[-1][1] == col + 1
+          legal_captures.push([row + 1, col + 1])
+        end
+      end
+
+      if row == 4 && (col - 1) >= 0
+        if (board[row][col - 1].empty == false) && (board[row][col - 1].piece.name == "WhitePawn") &&
+          move_log[-1] == "#{col_to_chess_notation(col - 1)}4" && move_log_starting_squares[-1][0] == 6 &&
+          move_log_starting_squares[-1][1] == col - 1
+          legal_captures.push([row + 1, col - 1])
+        end
+      end
+    end
+
     return legal_captures
+  end
+
+    # Takes an integer column and returns the corresponding string letter in chess notation.
+  # Used to determine whether en passant capture is legal.
+  def col_to_chess_notation(col)
+    if col == 0
+      return "a"
+    elsif col == 1
+      return "b"
+    elsif col == 2
+      return "c"
+    elsif col == 3
+      return "d"
+    elsif col == 4
+      return "e"
+    elsif col == 5
+      return "f"
+    elsif col == 6
+      return "g"
+    elsif col == 7
+      return "h"
+    end
   end
 
 end
@@ -968,7 +1050,11 @@ class Game
     pieces.each do |piece|
       piece.board = board
       piece.move_range = piece.set_move_range(piece.row, piece.col, piece.board)
-      piece.attack_range = piece.set_attack_range(piece.row, piece.col, piece.board)
+      if piece.name == "WhitePawn" || piece.name == "BlackPawn"
+        piece.attack_range = piece.set_attack_range(piece.row, piece.col, piece.board, @move_log, @move_log_starting_squares)
+      else
+        piece.attack_range = piece.set_attack_range(piece.row, piece.col, piece.board)
+      end
     end
 
     pieces[0..15].each do |piece|
@@ -1016,15 +1102,13 @@ class Game
       elsif move == "O-O-O" || move == "0-0-0"
         castle_queenside
       else
-        make_move(get_starting_square(move), get_destination_square(move))
-      end
-
-      # Update the move logs
-      @move_log << move
-      if move == "O-O" || move == "0-0" || move == "O-O-O" || move == "0-0-0"
-        @move_log_starting_squares << move
-      else
-        @move_log_starting_squares << get_starting_square(move)
+        @move_log << move
+        if move == "O-O" || move == "0-0" || move == "O-O-O" || move == "0-0-0"
+          @move_log_starting_squares << move
+        else
+          @move_log_starting_squares << [get_starting_square(move)[0], get_starting_square(move)[1]]
+        end
+        make_move(get_starting_square(move), get_destination_square(move), move)
       end
 
       print_board
@@ -1469,7 +1553,7 @@ class Game
   def legal_move?(move)
     move_type = get_move_type(move)
     if move_type != "castle kingside" && move_type != "castle queenside"
-      destination_square = get_destination_square(move) # returns @board[5][4] for ex.
+      destination_square = get_destination_square(move) # returns [a, b]
       capture = is_capture?(move)
     end
 
@@ -1507,7 +1591,7 @@ class Game
             if @move_log[i].slice(0) == "K"
               return false
             elsif @move_log[i].slice(0) == "R"
-              if @move_log_starting_squares[i] == @board[7][7]
+              if @move_log_starting_squares[i] == [7, 7]
                 return false
               end
             end
@@ -1550,7 +1634,7 @@ class Game
             if @move_log[i].slice(0) == "K"
               return false
             elsif @move_log[i].slice(0) == "R"
-              if @move_log_starting_squares[i] == @board[0][7]
+              if @move_log_starting_squares[i] == [0, 7]
                 return false
               end
             end
@@ -1597,7 +1681,7 @@ class Game
             if @move_log[i].slice(0) == "K"
               return false
             elsif @move_log[i].slice(0) == "R"
-              if @move_log_starting_squares[i] == @board[7][0]
+              if @move_log_starting_squares[i] == [7, 0]
                 return false
               end
             end
@@ -1640,7 +1724,7 @@ class Game
             if @move_log[i].slice(0) == "K"
               return false
             elsif @move_log[i].slice(0) == "R"
-              if @move_log_starting_squares[i] == @board[0][0]
+              if @move_log_starting_squares[i] == [0, 0]
                 return false
               end
             end
@@ -1685,7 +1769,7 @@ class Game
   end
 
   # Takes a move in chess notation and returns the destination square
-  # in board notation (e.g. @board[1][2])
+  # as an array of coordinates (e.g. [4, 5])
   def get_destination_square(move)
     move_number = move[-1] # this is a number 1-8
     move_letter = move[-2] # this is a letter a-h
@@ -1726,7 +1810,7 @@ class Game
       move_col = 7
     end
 
-    return @board[move_row][move_col]
+    return [move_row, move_col]
   end
 
   # Checks whether a move is a capture
@@ -1742,30 +1826,30 @@ class Game
   # the attack range stored in the piece being evaluated.
   # Returns true if the piece can make the capture requested.
   def check_attack_range(piece, destination_square)
-    piece.attack_range.each do |square| # square is an array of coordinates e.g. [3, 3]
-      if @board[destination_square.row][destination_square.col] == @board[square[0]][square[1]]
-        return true
-      end
+    if piece.attack_range.include?(destination_square)
+      return true
+    else
+      return false
     end
-    return false
   end
 
   # Compares the destination square of the move requested with
   # the move range stored in the piece being evaluated.
   # Returns true if the piece can make the move requested.
   def check_move_range(piece, destination_square)
-    piece.move_range.each do |square|
-      if @board[destination_square.row][destination_square.col] == @board[square[0]][square[1]]
-        return true
-      end
+    if piece.move_range.include?(destination_square)
+      return true
+    else
+      return false
     end
-    return false
   end
 
   # Finds the starting square for the move that is to be made.
+  # Returns the starting square as an array of coordinates [a, b].
+  # PROBLEM: 
   def get_starting_square(move)
     move_type = get_move_type(move) # returns a string "Knight", etc. 
-    destination_square = get_destination_square(move) # returns something like @board[3][4]
+    destination_square = get_destination_square(move) # returns something like [3, 4]
 
     if move_type != "WhitePawn" && move_type != "BlackPawn" && move_type != "King"
       disambig = is_disambig?(move)
@@ -1788,11 +1872,11 @@ class Game
             @board[i][col].piece.name == move_type
             if is_capture?(move)
               if check_attack_range(@board[i][col].piece, destination_square)
-                return @board[i][col]
+                return [i, col]
               end
             else
               if check_move_range(@board[i][col].piece, destination_square)
-                return @board[i][col]
+                return [i, col]
               end
             end
           end
@@ -1810,11 +1894,11 @@ class Game
             @board[row][i].piece.name == move_type
             if is_capture?(move)
               if check_attack_range(@board[row][i].piece, destination_square)
-                return @board[row][i]
+                return [row, i]
               end
             else
               if check_move_range(@board[row][i].piece, destination_square)
-                return @board[row][i]
+                return [row, i]
               end
             end
           end
@@ -1837,15 +1921,15 @@ class Game
               if check_attack_range(@board[i][j].piece, destination_square)
                 if move_type == "WhitePawn" || move_type == "BlackPawn"
                   if get_pawn_column(move) == j # Make sure to use the right pawn if more than one could capture
-                    return @board[i][j]
+                    return [i, j]
                   end
                 else
-                  return @board[i][j]
+                  return [i, j]
                 end
               end
             else
               if check_move_range(@board[i][j].piece, destination_square)
-                return @board[i][j]
+                return [i, j]
               end
             end
           end
@@ -1972,17 +2056,51 @@ class Game
   end
 
   # Makes a move on the board.
-  def make_move(starting_square, destination_square)
+  def make_move(starting_square, destination_square, move)
 
-    destination_square.empty = false
-    destination_square.piece = starting_square.piece
-    destination_square.piece.row = destination_square.row
-    destination_square.piece.col = destination_square.col
-    destination_square.image = starting_square.image
+    if en_passant?(starting_square, destination_square, move)
+      if get_move_type(move) == "WhitePawn"
+        @board[destination_square[0] + 1][destination_square[1]].empty = true
+        @board[destination_square[0] + 1][destination_square[1]].piece = nil
+        @board[destination_square[0] + 1][destination_square[1]].image = " "
+      elsif get_move_type(move) == "BlackPawn"
+        @board[destination_square[0] - 1][destination_square[1]].empty = true
+        @board[destination_square[0] - 1][destination_square[1]].piece = nil
+        @board[destination_square[0] - 1][destination_square[1]].image = " "
+      end
+    end
 
-    starting_square.empty = true
-    starting_square.piece = nil
-    starting_square.image = " "
+    @board[destination_square[0]][destination_square[1]].empty = false
+    @board[destination_square[0]][destination_square[1]].piece = @board[starting_square[0]][starting_square[1]].piece
+    @board[destination_square[0]][destination_square[1]].piece.row = @board[destination_square[0]][destination_square[1]].row
+    @board[destination_square[0]][destination_square[1]].piece.col = @board[destination_square[0]][destination_square[1]].col
+    @board[destination_square[0]][destination_square[1]].image = @board[starting_square[0]][starting_square[1]].image
+
+    @board[starting_square[0]][starting_square[1]].empty = true
+    @board[starting_square[0]][starting_square[1]].piece = nil
+    @board[starting_square[0]][starting_square[1]].image = " "
+  end
+
+  # Returns true if the move is an en passant capture.
+  def en_passant?(starting_square, destination_square, move)
+
+    if get_move_type(move) == "WhitePawn"
+      if starting_square[0] == 3 && is_capture?(move) && @board[destination_square[0]][destination_square[1]].empty
+        return true
+      else
+        return false
+      end
+    elsif get_move_type(move) == "BlackPawn"
+      if starting_square[0] == 4 && is_capture?(move) && @board[destination_square[0]][destination_square[1]].empty
+        return true
+      else
+        return false
+      end
+
+      return false
+    end
+
+    return false
   end
 
   # Special method for making the castle kingside move
@@ -2125,6 +2243,10 @@ class Game
         if @board[i][j].empty
           j += 1
           next
+        elsif @board[i][j].piece.name == "WhitePawn" || @board[i][j].piece.name == "BlackPawn"
+          @board[i][j].piece.board = @board
+          @board[i][j].piece.move_range = @board[i][j].piece.set_move_range(@board[i][j].piece.row, @board[i][j].piece.col, @board[i][j].piece.board)
+          @board[i][j].piece.attack_range = @board[i][j].piece.set_attack_range(@board[i][j].piece.row, @board[i][j].piece.col, @board[i][j].piece.board, @move_log, @move_log_starting_squares)
         else
           @board[i][j].piece.board = @board
           @board[i][j].piece.move_range = @board[i][j].piece.set_move_range(@board[i][j].piece.row, @board[i][j].piece.col, @board[i][j].piece.board)
@@ -2142,7 +2264,7 @@ class Game
     board_save = Marshal.load(Marshal.dump(@board))
     starting_square = get_starting_square(move)
     destination_square = get_destination_square(move)
-    make_move(starting_square, destination_square)
+    make_move(starting_square, destination_square, move)
     update_move_attack_ranges
     king_square = find_king_square
 
@@ -2465,6 +2587,8 @@ class Game
     return false
   end
 
+  # Sub-method called by the can_capture? method, which itself is called by the checkmate? method.
+  # Here destination_square is an array of coordinates [a, b] of the piece attacking the king.
   def get_chess_notation_capture(piece, destination_square)
     if piece.name == "King"
       first_char = "K"
@@ -2488,6 +2612,7 @@ class Game
     return "#{first_char}x#{destination_col}#{destination_row}"
   end
 
+  # Sub-method called by the can_interpose? method.
   def get_chess_notation_interpose(piece, destination_square)
     if piece.name == "Queen"
       first_char = "Q"
