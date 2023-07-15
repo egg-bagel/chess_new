@@ -982,6 +982,7 @@ class Game
     @current_player = "white"
     @move_log = []
     @move_log_starting_squares = []
+    @position_log = []
   end
 
   def create_board
@@ -1083,7 +1084,7 @@ class Game
 
   def play
     print_board
-    while checkmate? == false && stalemate? == false && insufficient_material? == false
+    while checkmate? == false && stalemate? == false && insufficient_material? == false && threefold_repetition? == false
       # Gets a legal move in valid chess notation
       move = prompt_for_move
 
@@ -1096,10 +1097,12 @@ class Game
         end
       end
 
-      # Make the move, with special methods for castling
+      # Add the move to the move log and make the move on the board
       if move == "O-O" || move == "0-0"
+        @move_log << move
         castle_kingside
       elsif move == "O-O-O" || move == "0-0-0"
+        @move_log << move
         castle_queenside
       else
         @move_log << move
@@ -1110,6 +1113,9 @@ class Game
         end
         make_move(get_starting_square(move), get_destination_square(move), move)
       end
+
+      # Take a snapshot of the new position on the board and add it to the position log
+      update_position_log
 
       print_board
       update_move_attack_ranges
@@ -1126,6 +1132,8 @@ class Game
       puts "The game has ended in a draw by stalemate."
     elsif insufficient_material? == true
       puts "The game has ended in a draw because neither side has enough material to force a checkmate."
+    elsif threefold_repetition? == true
+      puts "The game has ended in a draw by threefold repetition."
     end
   end
 
@@ -1555,7 +1563,6 @@ class Game
     move_type = get_move_type(move)
     if move_type != "castle kingside" && move_type != "castle queenside"
       destination_square = get_destination_square(move) # returns [a, b]
-      puts "destination square is #{destination_square}"
       capture = is_capture?(move)
     end
 
@@ -2258,6 +2265,27 @@ class Game
     end
   end
 
+  # Adds a new array representing the current board state to the position log.
+  def update_position_log
+    current_position = []
+
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty
+          current_position.push(["empty"])
+        else
+          current_position.push([@board[i][j].piece.name, @board[i][j].piece.color])
+        end
+        j += 1
+      end
+      i += 1
+    end
+
+    @position_log << current_position
+  end
+
   # Undoes a move on the board.
   # Uses the starting square and destination square of the move just made.
   # NOTE: PROBABLY WON'T END UP NEEDING TO USE THIS METHOD
@@ -2879,6 +2907,32 @@ class Game
     end
 
   end
+
+  # Returns true if the same position occurs on the board for a third time.
+  def threefold_repetition?
+
+    @position_log.each_with_index do |position, index|
+      count = 0
+      i = 0
+      while i < @position_log.length
+        if i == index
+          i += 1
+          next
+        else
+          if position == @position_log[i]
+            count += 1
+            if count == 2
+              return true
+            end
+          end
+        end
+        i += 1
+      end
+    end
+
+    return false
+  end
+
 
 end
 
