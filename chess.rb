@@ -1,3 +1,5 @@
+require "yaml"
+
 class WhitePawn
 
   attr_accessor :row, :col, :color, :image, :name, :board, :move_range, :attack_range
@@ -1083,6 +1085,8 @@ class Game
   end
 
   def play
+    puts "Welcome to my chess game!"
+    puts "If you would like to save the game at any point, type \"save\" when the game prompts you to enter a move."
     print_board
     while checkmate? == false && stalemate? == false && insufficient_material? == false && threefold_repetition? == false
       # Gets a legal move in valid chess notation
@@ -1149,7 +1153,10 @@ class Game
 
     # Checks that the player's input is in valid chess notation and is a legal move
     while valid_notation?(move) == false || legal_move?(move) == false
-      if valid_notation?(move) == false
+      if move == "save"
+        save_game
+        puts "Game saved. Enter a move to continue playing:"
+      elsif valid_notation?(move) == false
         puts "That move is not in valid chess notation. Please try again:"
       elsif legal_move?(move) == false
         puts "That move is not legal to play. Please try again:"
@@ -2286,27 +2293,6 @@ class Game
     @position_log << current_position
   end
 
-  # Undoes a move on the board.
-  # Uses the starting square and destination square of the move just made.
-  # NOTE: PROBABLY WON'T END UP NEEDING TO USE THIS METHOD
-  # Using marshal instead to make a deep copy of the board,
-  # this undo method doesn't work for undoing captures
-  def undo_move(starting_square, destination_square)
-
-    starting_square.empty = false
-    starting_square.piece = destination_square.piece
-    starting_square.piece.row = starting_square.row
-    starting_square.piece.col = starting_square.col
-    starting_square.image = destination_square.image
-
-    # PROBLEM HERE
-    # If the last move was a capture, I need to put the old piece back on the destination square.
-    # But this method sets the destination square to always be empty after the undo.
-    destination_square.empty = true
-    destination_square.piece = nil
-    destination_square.image = " "
-  end
-
   # Toggles @current_player between black and white
   def switch_player
     if @current_player == "white"
@@ -2933,8 +2919,42 @@ class Game
     return false
   end
 
+  # Saves the current game in a file named by the player
+  def save_game
+    puts "What do you want to name your save file?"
+    file_name = gets.chomp
+    saved_game = File.open("#{file_name}.yml", "w") { |file| file.write(self.to_yaml) }
+  end
 
 end
 
-game = Game.new
-game.play
+play_again = "Y"
+while play_again == "Y"
+  puts "Would you like to load a previously saved game?"
+  puts "Enter Y for yes. Enter N to start a new game."
+  load_choice = gets.chomp.upcase
+
+  until load_choice == "Y" || load_choice == "N"
+    puts "Invalid input, please try again:"
+    load_choice = gets.chomp.upcase
+  end
+
+  if load_choice == "Y"
+    begin
+      puts "Enter the name of the saved game file you want to open:"
+      saved_file = gets.chomp
+      new_game = YAML::load_file("#{saved_file}.yml", aliases: true, permitted_classes: [Game, Square, WhitePawn, BlackPawn, Knight, Bishop, Rook, Queen, King])
+      new_game.play
+    rescue
+      puts "Sorry, I couldn't find that file."
+    end
+  end
+  
+  if load_choice == "N"
+    new_game = Game.new
+    new_game.play
+  end
+
+  puts "Would you like to play again? Enter Y or N:"
+  play_again = gets.chomp.upcase
+end
