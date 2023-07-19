@@ -985,6 +985,8 @@ class Game
     @move_log = []
     @move_log_starting_squares = []
     @position_log = []
+    @computer_opponent = false
+    @player_color = nil
   end
 
   def create_board
@@ -1086,18 +1088,43 @@ class Game
 
   def play
     puts "Welcome to my chess game!"
+    if @move_log == []
+      puts "Do you want to play against the computer or a human opponent?"
+      puts "Enter 1 to play against the computer. Enter 2 to play with another person."
+      opponent_choice = gets.chomp
+
+      while opponent_choice != "1" && opponent_choice != "2"
+        puts "Invalid input! Please enter 1 to play against the computer and 2 to play against a person."
+        opponent_choice = gets.chomp
+      end
+
+      if opponent_choice == "1"
+        puts "You have chosen to play against the computer."
+        @computer_opponent = true
+        @player_color = randomly_choose_color
+        puts "You are playing as #{@player_color}."
+      elsif opponent_choice == "2"
+        puts "You have chosen to play against another person."
+      end
+    end
+
     puts "If you would like to save the game at any point, type \"save\" when the game prompts you to enter a move."
     print_board
     while checkmate? == false && stalemate? == false && insufficient_material? == false && threefold_repetition? == false
-      # Gets a legal move in valid chess notation
-      move = prompt_for_move
 
-      # Check that the move does not leave the player's king in check
-      # Castling is excluded because it is already checked for check in the legal_move? method called in prompt_for_move.
-      if move != "O-O" && move != "O-O-O" && move != "0-0" && move != "0-0-0"
+      if @computer_opponent == true && @current_player != @player_color
+        move = get_random_move
         while leaves_king_in_check?(move)
-          puts "That move leaves your king in check. Try another move."
-          move = prompt_for_move
+          move = get_random_move
+        end
+        puts "The computer's move is #{move}."
+      else
+        move = prompt_for_move
+        if move != "O-O" && move != "O-O-O" && move != "0-0" && move != "0-0-0"
+          while leaves_king_in_check?(move)
+            puts "That move leaves your king in check. Try another move."
+            move = prompt_for_move
+          end
         end
       end
 
@@ -1121,6 +1148,7 @@ class Game
       # Take a snapshot of the new position on the board and add it to the position log
       update_position_log
 
+      # Print the new position, update the pieces' move and attack ranges, and switch players
       print_board
       update_move_attack_ranges
       switch_player
@@ -1139,6 +1167,13 @@ class Game
     elsif threefold_repetition? == true
       puts "The game has ended in a draw by threefold repetition."
     end
+  end
+
+  # Randomly selects a color for the human player
+  # when playing against a computer opponent.
+  def randomly_choose_color
+    colors = ["white", "black"]
+    return colors.sample
   end
 
   # Prompts the player to enter a legal move in valid chess notation.
@@ -1162,6 +1197,71 @@ class Game
         puts "That move is not legal to play. Please try again:"
       end
       move = gets.chomp
+    end
+
+    return move
+  end
+
+  # Chooses a random move for the computer opponent to make.
+  def get_random_move
+
+    computer_pieces = []
+    # Go through the board and put all the computer's pieces in an array.
+    i = 0
+    while i <= 7
+      j = 0
+      while j <= 7
+        if @board[i][j].empty || @board[i][j].piece.color == @player_color
+          j += 1
+          next
+        elsif @board[i][j].piece.color != @player_color
+          computer_pieces << @board[i][j].piece
+        end
+        j += 1
+      end
+      i += 1
+    end
+
+    # Select a random piece from the array of computer pieces.
+    piece_to_move = computer_pieces.sample
+
+    # Put all of the piece's potential moves into an array.
+    possible_destination_squares = []
+
+    piece_to_move.attack_range.each do |coordinates|
+      possible_destination_squares << coordinates
+    end
+
+    piece_to_move.move_range.each do |coordinates|
+      possible_destination_squares << coordinates
+    end
+
+    # Make sure the piece has at least one potential move in the array.
+    # Repeat the process to choose a different piece if the first piece chosen had no possible moves.
+    while possible_destination_squares.length == 0
+      piece_to_move = computer_pieces.sample
+
+      piece_to_move.attack_range.each do |coordinates|
+        possible_destination_squares << coordinates
+      end
+
+      piece_to_move.move_range.each do |coordinates|
+        possible_destination_squares << coordinates
+      end
+    end
+
+    # Randomly choose one of the piece's possible moves.
+    destination_coordinates = possible_destination_squares.sample
+
+    # Use the destination coordinates to translate the move into chess notation,
+    # making sure to account for captures.
+
+    # If it is a capture
+    if @board[destination_coordinates[0]][destination_coordinates[1]].empty == false
+      move = get_chess_notation_capture(piece_to_move, destination_coordinates)
+    # If it is not a capture
+    else
+      move = get_chess_notation_interpose(piece_to_move, destination_coordinates)
     end
 
     return move
@@ -1867,7 +1967,6 @@ class Game
 
   # Finds the starting square for the move that is to be made.
   # Returns the starting square as an array of coordinates [a, b].
-  # PROBLEM: 
   def get_starting_square(move)
     move_type = get_move_type(move) # returns a string "Knight", etc. 
     destination_square = get_destination_square(move) # returns something like [3, 4]
